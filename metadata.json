@@ -1,0 +1,6 @@
+{
+  "name": "SEO Checker & AdSense Analyzer",
+  "description": "An AI-powered SEO diagnostic checklist and manual Google AdSense readiness evaluator styled with SEMrush design parameters.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
