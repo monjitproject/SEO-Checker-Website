@@ -154,3 +154,12 @@ export interface ContactMessage {
   date: string;
   replied: boolean;
 }
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  subscription: {
+    plan: "premium" | "free";
+  };
+}

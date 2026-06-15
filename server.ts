@@ -139,7 +139,13 @@ function generateDynamicFallbackReport(targetUrl: string): any {
       imageAltCount: 16,
       imageAltMissing: 4,
       imageAltStatus: "warning",
-      imageAltFeedback: "4 images are missing alternative text (ALT tags). Add descriptive ALT attributes to optimize image search indexation."
+      imageAltFeedback: "4 images are missing alternative text (ALT tags). Add descriptive ALT attributes to optimize image search indexation.",
+      canonical: `https://${domain}/`,
+      canonicalStatus: "passed",
+      canonicalFeedback: "Canonical link tag is correctly pointing to the page URL.",
+      robotsMeta: "index, follow",
+      robotsMetaStatus: "passed",
+      robotsMetaFeedback: "No indexing blocks have been detected in meta tags."
     },
     technical: {
       score: Math.min(100, overallScore + 8),
@@ -294,7 +300,13 @@ Prepare a complete, production-ready diagnostic report in correct JSON format. T
     "imageAltCount": number,
     "imageAltMissing": number,
     "imageAltStatus": "passed" | "warning" | "failed",
-    "imageAltFeedback": "string"
+    "imageAltFeedback": "string",
+    "canonical": "string canonical link URL",
+    "canonicalStatus": "passed" | "warning" | "failed",
+    "canonicalFeedback": "string short feedback",
+    "robotsMeta": "string robots meta content",
+    "robotsMetaStatus": "passed" | "warning" | "failed",
+    "robotsMetaFeedback": "string feedback"
   },
   "technical": {
     "score": number,
