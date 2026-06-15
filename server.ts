@@ -255,6 +255,93 @@ function generateDynamicFallbackReport(targetUrl: string): any {
   };
 }
 
+// Ensure the parsed JSON includes every single field specified in the SEOReport TypeScript type with type safety.
+function mergeAndNormalizeReport(geminiData: any, targetUrl: string): any {
+  const fallback = generateDynamicFallbackReport(targetUrl);
+  if (!geminiData || typeof geminiData !== "object") return fallback;
+
+  // Safe deep copy of the perfect default fallback structure
+  const report = JSON.parse(JSON.stringify(fallback));
+
+  // Merge top-level metrics
+  if (typeof geminiData.overallScore === "number") {
+    report.overallScore = geminiData.overallScore;
+  }
+
+  // Merge sub-sections helper
+  const mergeSubObject = (subKey: string) => {
+    if (geminiData[subKey] && typeof geminiData[subKey] === "object") {
+      for (const k of Object.keys(report[subKey])) {
+        if (geminiData[subKey][k] !== undefined) {
+          if (Array.isArray(report[subKey][k])) {
+            if (Array.isArray(geminiData[subKey][k])) {
+              report[subKey][k] = geminiData[subKey][k];
+            }
+          } else if (typeof report[subKey][k] === typeof geminiData[subKey][k]) {
+            report[subKey][k] = geminiData[subKey][k];
+          }
+        }
+      }
+    }
+  };
+
+  mergeSubObject("onPage");
+  mergeSubObject("technical");
+  mergeSubObject("performance");
+  mergeSubObject("mobile");
+  mergeSubObject("security");
+
+  // Merge AdSense readiness checklist
+  if (geminiData.adSenseReadiness && typeof geminiData.adSenseReadiness === "object") {
+    const ar = report.adSenseReadiness;
+    const gar = geminiData.adSenseReadiness;
+    if (typeof gar.score === "number") ar.score = gar.score;
+    if (["ready", "needs_improvement", "not_ready"].includes(gar.status)) ar.status = gar.status;
+    if (typeof gar.overallFeedback === "string") ar.overallFeedback = gar.overallFeedback;
+    if (Array.isArray(gar.checklist)) {
+      ar.checklist = gar.checklist.map((item: any, idx: number) => {
+        const defaultItem = ar.checklist[idx] || { name: item.name || "Compliance checklist check", status: "passed" };
+        return {
+          name: typeof item.name === "string" ? item.name : defaultItem.name,
+          status: ["passed", "warning", "failed"].includes(item.status) ? item.status : defaultItem.status,
+          problem: typeof item.problem === "string" ? item.problem : defaultItem.problem,
+          impact: typeof item.impact === "string" ? item.impact : defaultItem.impact,
+          priority: ["high", "medium", "low"].includes(item.priority) ? item.priority : defaultItem.priority,
+          fixSuggestion: typeof item.fixSuggestion === "string" ? item.fixSuggestion : defaultItem.fixSuggestion,
+          adSenseImpact: typeof item.adSenseImpact === "string" ? item.adSenseImpact : defaultItem.adSenseImpact,
+        };
+      });
+    }
+  }
+
+  // Merge SEO recommendations
+  if (Array.isArray(geminiData.recommendations)) {
+    report.recommendations = geminiData.recommendations.map((rec: any, idx: number) => {
+      const defaultRec = report.recommendations[idx] || {
+        id: `rec_${Date.now()}_gemini_${idx}`,
+        title: "SEO Optimization check",
+        priority: "medium",
+        category: "On-Page SEO",
+        problem: "No precise details parsed.",
+        impact: "Performance and indexation improvement.",
+        fixSuggestion: "Review standard SEO manual suggestions."
+      };
+      return {
+        id: typeof rec.id === "string" ? rec.id : `rec_${Date.now()}_g_${idx}`,
+        title: typeof rec.title === "string" ? rec.title : defaultRec.title,
+        priority: ["high", "medium", "low"].includes(rec.priority) ? rec.priority : defaultRec.priority,
+        category: typeof rec.category === "string" ? rec.category : defaultRec.category,
+        problem: typeof rec.problem === "string" ? rec.problem : defaultRec.problem,
+        impact: typeof rec.impact === "string" ? rec.impact : defaultRec.impact,
+        fixSuggestion: typeof rec.fixSuggestion === "string" ? rec.fixSuggestion : defaultRec.fixSuggestion,
+        adSenseImpact: typeof rec.adSenseImpact === "string" ? rec.adSenseImpact : defaultRec.adSenseImpact,
+      };
+    });
+  }
+
+  return report;
+}
+
 // REST API Endpoints
 // Analyze Site SEO & AdSense Readiness (Full Integration with Server-Side Gemini API!)
 app.post("/api/analyze", async (req, res) => {
@@ -394,21 +481,33 @@ If you do not have live indexing capability for "${cleanUrl}", synthesize excell
       }
     });
 
-    const parsedData = JSON.parse(response.text.trim());
+    let rawText = response.text || "";
+    // Clean markdown wrappers if any are present
+    if (rawText.includes("```")) {
+      const match = rawText.match(/```(?:json)?([\s\S]*?)```/);
+      if (match) {
+        rawText = match[1];
+      }
+    }
+
+    const rawParsed = JSON.parse(rawText.trim());
+    
+    // Normalize and blend parse structure against rich complete defaults to shield from runtime gaps
+    const normalizedReport = mergeAndNormalizeReport(rawParsed, cleanUrl);
     
     // Supplement system markers
-    parsedData.id = `rep_${Date.now()}_ai`;
-    parsedData.url = cleanUrl.startsWith("http") ? cleanUrl : `https://${cleanUrl}`;
-    parsedData.timestamp = new Date().toISOString();
+    normalizedReport.id = `rep_${Date.now()}_ai`;
+    normalizedReport.url = cleanUrl.startsWith("http") ? cleanUrl : `https://${cleanUrl}`;
+    normalizedReport.timestamp = new Date().toISOString();
 
-    reportHistory.unshift(parsedData);
+    reportHistory.unshift(normalizedReport);
     if (reportHistory.length > 15) reportHistory.pop();
 
-    return res.json(parsedData);
+    return res.json(normalizedReport);
 
   } catch (apiError: any) {
     console.error("Gemini API scan execution failed, generating fallback representation:", apiError);
-    // Graceful recovery: return falls back report cleanly!
+    // Graceful recovery: return fallback report cleanly!
     const fallbackReport = generateDynamicFallbackReport(cleanUrl);
     reportHistory.unshift(fallbackReport);
     if (reportHistory.length > 15) reportHistory.pop();
